@@ -4,6 +4,7 @@ from app.config import API_KEY, MAX_CHUNK_SIZE
 from app.extractor.pdf import extract_pdf
 from app.extractor.excel import extract_excel
 from app.chunker.basic import chunk_text
+from app.ollama_client import chat_with_ollama, chat_with_gemini
 
 app = FastAPI()
 
@@ -40,4 +41,41 @@ def extract(payload: dict, x_api_key: str = Header(None)):
     return {
         "document_id": doc_id,
         "chunks": chunks
+    }
+
+@app.post("/chat-gemini")
+def chat_gemini(payload: dict, x_api_key: str = Header(None)):
+    if x_api_key != API_KEY:
+        raise HTTPException(403)
+
+    question = payload.get("question")
+    chunks_raw = payload.get("chunks")  # list of text
+    chunks = []
+    if chunks_raw:
+        for c in chunks_raw:
+            if isinstance(c, dict) and "content" in c:
+                chunks.append(c["content"])
+    answer = chat_with_gemini(question, chunks)
+
+    return {
+        "answer": answer
+    }
+
+@app.post("/chat")
+def chat(payload: dict, x_api_key: str = Header(None)):
+    if x_api_key != API_KEY:
+        raise HTTPException(403)
+
+    question = payload.get("question")
+    chunks = payload.get("chunks")  # list of text
+
+    if not question or not chunks:
+        raise HTTPException(400, "Invalid payload")
+
+    context = "\n\n".join(chunks[:5])  # LIMIT konteks (WAJIB)
+
+    answer = chat_with_ollama(question, context)
+
+    return {
+        "answer": answer
     }
